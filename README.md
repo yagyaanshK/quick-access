@@ -52,8 +52,7 @@ Log out and back in, then `gnome-extensions enable quick-access@yagyaanshK.githu
 Quick Access fills a gap until GNOME has it built in:
 
 - The natural home for this is a "recent folders" section in the sidebar of
-  Files (Nautilus), which also draws GNOME's file dialogs on GNOME 50. A proposal
-  to the Nautilus project is being prepared.
+  Files (Nautilus), which also draws GNOME's file dialogs on GNOME 50.
 - GNOME's file dialog already remembers the last folder per app. It skips apps it
   cannot identify; the Signal case is reported in
   [Signal-Desktop#6239](https://github.com/signalapp/Signal-Desktop/issues/6239).
