@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.quick-access" path="/org/gnome/shell/extensions/quick-access/">
+    <key name="max-folders" type="i">
+      <range min="1" max="10"/>
+      <default>5</default>
+      <summary>Number of recent folders</summary>
+      <description>How many recently used folders to show in the sidebar.</description>
+    </key>
+    <key name="skip-sidebar-folders" type="b">
+      <default>true</default>
+      <summary>Skip folders already in the sidebar</summary>
+      <description>Leave out the home folder and folders you bookmarked yourself, since the sidebar shows them anyway.</description>
+    </key>
+    <key name="hidden-folders" type="as">
+      <default>[]</default>
+      <summary>Hidden folders</summary>
+      <description>Recent folders removed from the sidebar by the user; they are not shown again.</description>
+    </key>
+  </schema>
+</schemalist>

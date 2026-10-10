@@ -1,0 +1,9 @@
+{
+  "uuid": "quick-access@yagyaanshK.github.com",
+  "name": "Quick Access",
+  "description": "Shows your most recently used folders in the sidebar of every Open and Save dialog and of Files, like Quick Access on Windows. Saving or opening a file moves its folder to the top. Remove an entry to hide that folder, or rename it to pin it as a normal bookmark.",
+  "shell-version": ["50"],
+  "url": "https://github.com/yagyaanshK/quick-access",
+  "settings-schema": "org.gnome.shell.extensions.quick-access",
+  "version-name": "0.1.0"
+}
