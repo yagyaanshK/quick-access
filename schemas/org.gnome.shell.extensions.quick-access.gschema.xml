@@ -17,5 +17,26 @@
       <summary>Hidden folders</summary>
       <description>Recent folders removed from the sidebar by the user; they are not shown again.</description>
     </key>
+    <key name="dock-jump-lists" type="b">
+      <default>true</default>
+      <summary>Dock jump lists</summary>
+      <description>Add pinned and recent files or folders to the right-click menu of apps in the dock.</description>
+    </key>
+    <key name="jump-list-items" type="i">
+      <range min="1" max="20"/>
+      <default>10</default>
+      <summary>Recent entries per jump list</summary>
+      <description>How many recent files or folders a jump list shows, not counting pinned ones.</description>
+    </key>
+    <key name="jump-list-pins" type="a{sas}">
+      <default>{}</default>
+      <summary>Pinned jump list entries</summary>
+      <description>For each app (by desktop file ID), the URIs pinned to its jump list, in the order they were pinned.</description>
+    </key>
+    <key name="jump-list-removed" type="a{sas}">
+      <default>{}</default>
+      <summary>Removed jump list entries</summary>
+      <description>For each app (by desktop file ID), the URIs removed from its jump list; they are not shown in it again.</description>
+    </key>
   </schema>
 </schemalist>
