@@ -4,7 +4,12 @@
 
 // Marks the bookmarks Quick Access manages; anything without it belongs to the
 // user. Renaming an entry drops the mark, which is how a folder gets pinned.
-export const MARK = '\u{1F558} ';
+// U+FE0E asks for the plain text clock, so it is drawn in the sidebar's own
+// colour like the icons next to it instead of as a colour emoji.
+export const MARK = '\u{1F558}\u{FE0E} ';
+// Versions before 0.2 wrote the clock without U+FE0E; those entries are still
+// ours and get relabelled on the next update.
+const OLD_MARK = '\u{1F558} ';
 
 const SYSTEM_PREFIXES = ['/tmp/', '/var/tmp/', '/proc/', '/sys/', '/dev/', '/run/user/'];
 
@@ -92,7 +97,8 @@ export function parseBookmarks(text) {
 }
 
 export function isManaged(bookmark) {
-    return bookmark.label !== null && bookmark.label.startsWith(MARK);
+    return bookmark.label !== null &&
+        (bookmark.label.startsWith(MARK) || bookmark.label.startsWith(OLD_MARK));
 }
 
 // The user's own bookmarks, in their order, followed by the recent folders.

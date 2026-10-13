@@ -29,6 +29,9 @@ glib-compile-schemas "$EXT/schemas"
 mkdir -p "$W/docs" "$W/a" "$W/b" "$W/c" "$W/d" "$W/My Photos" "$W/x/shots" "$W/y/shots" "$W/.hidden"
 u() { python3 -c 'import pathlib,sys; print(pathlib.Path(sys.argv[1]).as_uri())' "$1"; }
 printf '%s Documents\n' "$(u "$W/docs")" > $XDG_CONFIG_HOME/gtk-3.0/bookmarks
+# An entry as versions before 0.2 wrote it (emoji clock without U+FE0E); the
+# first check expects it relabelled with the current mark.
+printf '%s \U0001F558 a\n' "$(u "$W/a")" >> $XDG_CONFIG_HOME/gtk-3.0/bookmarks
 
 # recently-used.xbel with one entry per "path:seconds-ago[:dir]"
 xbel() {
@@ -74,7 +77,7 @@ check() { # name, expected managed list
     local got; got=$(managed)
     if [ "$got" = "$2" ]; then echo "PASS  $1"; else echo "FAIL  $1"; echo "      want: $2"; echo "      got:  $got"; fails=$((fails+1)); fi
 }
-M=$'\U0001F558 '
+M=$'\U0001F558\uFE0E '
 
 settle 2
 check "recent folders, newest first; docs (bookmarked), hidden and missing skipped" \

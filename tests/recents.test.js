@@ -68,6 +68,7 @@ test('bookmarks parse with and without labels', () => {
         {uri: 'file:///c', label: null, line: 'file:///c'},
     ]);
     assert.equal(isManaged({uri: 'x', label: `${MARK}x`}), true);
+    assert.equal(isManaged({uri: 'x', label: '\u{1F558} x'}), true);
     assert.equal(isManaged({uri: 'x', label: 'x'}), false);
     assert.equal(isManaged({uri: 'x', label: null}), false);
 });
