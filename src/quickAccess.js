@@ -7,6 +7,7 @@ import GLib from 'gi://GLib';
 import {
     isManaged, labelsFor, mergeBookmarks, parseBookmarks, recentFolders, removedByUser,
 } from './recents.js';
+import {readRecentEntries, recentFile} from './recentFile.js';
 
 Gio._promisify(Gio.File.prototype, 'load_contents_async');
 Gio._promisify(Gio.File.prototype, 'replace_contents_bytes_async', 'replace_contents_finish');
@@ -70,8 +71,7 @@ export class QuickAccess {
     constructor(settings) {
         this._settings = settings;
         this._privacy = new Gio.Settings({schema_id: 'org.gnome.desktop.privacy'});
-        this._recentFile = Gio.File.new_for_path(
-            GLib.build_filenamev([GLib.get_user_data_dir(), 'recently-used.xbel']));
+        this._recentFile = recentFile();
         this._bookmarksFile = Gio.File.new_for_path(
             GLib.build_filenamev([GLib.get_user_config_dir(), 'gtk-3.0', 'bookmarks']));
         this._cancellable = new Gio.Cancellable();
@@ -89,7 +89,11 @@ export class QuickAccess {
             monitor.connectObject('changed', () => this._queueSync(), this);
             return monitor;
         });
-        this._settings.connectObject('changed', () => this._queueSync(), this);
+        // Only its own keys: the dock jump list settings live in the same schema.
+        this._settings.connectObject(
+            'changed::max-folders', () => this._queueSync(),
+            'changed::skip-sidebar-folders', () => this._queueSync(),
+            'changed::hidden-folders', () => this._queueSync(), this);
         this._privacy.connectObject('changed::remember-recent-files',
             () => this._queueSync(), this);
 
@@ -139,7 +143,7 @@ export class QuickAccess {
                 for (const bookmark of parseBookmarks(text).filter(b => !isManaged(b)))
                     exclude.add(bookmark.uri);
             }
-            folders = recentFolders(await this._readRecentEntries(), {
+            folders = recentFolders(await readRecentEntries(this._recentFile, this._cancellable), {
                 limit: this._settings.get_int('max-folders'),
                 exclude,
                 isUsable: isFolder,
@@ -154,34 +158,6 @@ export class QuickAccess {
                 Gio.FileCreateFlags.NONE, this._cancellable);
         }
         this._lastWritten = folders;
-    }
-
-    async _readRecentEntries() {
-        const bookmarks = new GLib.BookmarkFile();
-        try {
-            const [bytes] = await this._recentFile.load_contents_async(this._cancellable);
-            bookmarks.load_from_data(bytes);
-        } catch (e) {
-            if (isError(e, Gio.IOErrorEnum.CANCELLED))
-                throw e;
-            if (!isError(e, Gio.IOErrorEnum.NOT_FOUND))
-                logError(e, 'Quick Access: cannot read recent files');
-            return [];
-        }
-
-        const entries = [];
-        for (const uri of bookmarks.get_uris()) {
-            let mime = null;
-            let time = 0;
-            try {
-                mime = bookmarks.get_mime_type(uri);
-            } catch {}
-            try {
-                time = bookmarks.get_modified_date_time(uri).to_unix();
-            } catch {}
-            entries.push({uri, isDir: mime === 'inode/directory', time});
-        }
-        return entries;
     }
 
     _rememberRemoved(text) {

@@ -21,7 +21,7 @@ export function folderUriOf(uri, isDir) {
     return `file://${folder}`;
 }
 
-function decodedPath(uri) {
+export function decodedPath(uri) {
     try {
         return decodeURIComponent(uri.slice('file://'.length));
     } catch {
@@ -29,11 +29,15 @@ function decodedPath(uri) {
     }
 }
 
-function isHiddenOrSystem(uri) {
+// Temporary, virtual and per-session places such as /tmp or the document
+// portal's /run/user/<id>/doc.
+export function isSystemUri(uri) {
     const path = decodedPath(uri);
-    if (SYSTEM_PREFIXES.some(prefix => `${path}/`.startsWith(prefix)))
-        return true;
-    return path.split('/').some(part => part.startsWith('.'));
+    return SYSTEM_PREFIXES.some(prefix => `${path}/`.startsWith(prefix));
+}
+
+function isHiddenOrSystem(uri) {
+    return isSystemUri(uri) || decodedPath(uri).split('/').some(part => part.startsWith('.'));
 }
 
 // entries: [{uri, isDir, time}] from recently-used.xbel, time in seconds.
