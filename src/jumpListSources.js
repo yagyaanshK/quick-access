@@ -6,11 +6,15 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
-import {FOLDERS, VSCODE, providerFor, vscodeRecents, vscodeWindows} from './apps.js';
+import {
+    FOLDERS, VSCODE, providerFor, vscodeOpenedPaths, vscodeRecents, vscodeWindows, vscodeWorkspaces,
+} from './apps.js';
 import {firstFound, listFor, recentCandidates, recentFiles} from './jumpList.js';
 import {readRecentEntries, recentFile} from './recentFile.js';
 import {recentFolders} from './recents.js';
 
+Gio._promisify(Gio.File.prototype, 'enumerate_children_async');
+Gio._promisify(Gio.FileEnumerator.prototype, 'next_files_async');
 Gio._promisify(Gio.File.prototype, 'load_contents_async');
 Gio._promisify(Gio.File.prototype, 'query_info_async');
 Gio._promisify(Gio.Subprocess.prototype, 'communicate_utf8_async');
@@ -36,6 +40,7 @@ export class JumpListSources {
         this._cancellable = new Gio.Cancellable();
         this._recent = {stamp: null, entries: []};
         this._vscode = new Map();
+        this._workspaceJson = new Map();
         this._lists = new Map();
         this._helpers = new Set();
         this._reported = new Set();
@@ -121,11 +126,20 @@ export class JumpListSources {
         return this._recent.entries;
     }
 
-    // VS Code's recently opened folders and workspaces, followed by the
-    // folders of its open windows.
+    // VS Code's recently opened folders and workspaces: its own list where
+    // the version keeps one, then every workspace it has opened by when it was
+    // last used, then the folders of its open windows.
     async _vscodeUris({base, path}) {
         const root = base === 'home' ? GLib.get_home_dir() : GLib.get_user_config_dir();
-        const dir = Gio.File.new_for_path(GLib.build_filenamev([root, path, 'User', 'globalStorage']));
+        const user = Gio.File.new_for_path(GLib.build_filenamev([root, path, 'User']));
+        const [history, workspaces] = await Promise.all([
+            this._vscodeHistory(user.get_child('globalStorage')),
+            this._vscodeWorkspaces(user.get_child('workspaceStorage')),
+        ]);
+        return [...new Set([...history.recents, ...workspaces, ...history.windows])];
+    }
+
+    async _vscodeHistory(dir) {
         const database = dir.get_child('state.vscdb');
         const storage = dir.get_child('storage.json');
 
@@ -133,15 +147,87 @@ export class JumpListSources {
         const stamp = stamps.join();
         const cached = this._vscode.get(dir.get_path());
         if (cached?.stamp === stamp)
-            return cached.uris;
+            return cached;
 
         const [recentJson, storageJson] = await Promise.all([
             stamps[0] === 'missing' ? '' : this._readDatabase(database),
             this._readText(storage),
         ]);
-        const uris = [...new Set([...vscodeRecents(recentJson), ...vscodeWindows(storageJson)])];
-        this._vscode.set(dir.get_path(), {stamp, uris});
-        return uris;
+        const history = {
+            stamp,
+            recents: [...vscodeRecents(recentJson), ...vscodeOpenedPaths(storageJson)],
+            windows: vscodeWindows(storageJson),
+        };
+        this._vscode.set(dir.get_path(), history);
+        return history;
+    }
+
+    // One folder per workspace VS Code has opened. Its state.vscdb is written
+    // while the workspace is open, so its time says when it was last used.
+    async _vscodeWorkspaces(dir) {
+        const infos = [];
+        try {
+            const enumerator = await dir.enumerate_children_async('standard::name,standard::type',
+                Gio.FileQueryInfoFlags.NONE, GLib.PRIORITY_DEFAULT, this._cancellable);
+            for (;;) {
+                const batch = await enumerator.next_files_async(100, GLib.PRIORITY_DEFAULT, this._cancellable);
+                if (!batch.length)
+                    break;
+                infos.push(...batch);
+            }
+        } catch (e) {
+            if (isCancelled(e))
+                throw e;
+            if (!isNotFound(e))
+                this._reportOnce(dir.get_path(), e);
+            return [];
+        }
+
+        const items = await Promise.all(infos
+            .filter(info => info.get_file_type() === Gio.FileType.DIRECTORY)
+            .map(async info => {
+                const child = dir.get_child(info.get_name());
+                const json = await this._workspaceJsonOf(child);
+                if (!json)
+                    return null;
+                const time = await this._modified(child.get_child('state.vscdb')) ??
+                    await this._modified(child.get_child('workspace.json'));
+                return {json, time: time ?? 0};
+            }));
+        return vscodeWorkspaces(items.filter(Boolean));
+    }
+
+    // workspace.json never changes once written, so it is read only once.
+    async _workspaceJsonOf(dir) {
+        const key = dir.get_path();
+        if (!this._workspaceJson.has(key)) {
+            const file = dir.get_child('workspace.json');
+            let json = '';
+            try {
+                const [bytes] = await file.load_contents_async(this._cancellable);
+                json = new TextDecoder().decode(bytes);
+            } catch (e) {
+                if (isCancelled(e))
+                    throw e;
+            }
+            if (!json)
+                return '';
+            this._workspaceJson.set(key, json);
+        }
+        return this._workspaceJson.get(key);
+    }
+
+    // Seconds since the epoch, or null if the file does not exist.
+    async _modified(file) {
+        try {
+            const info = await file.query_info_async('time::modified',
+                Gio.FileQueryInfoFlags.NONE, GLib.PRIORITY_DEFAULT, this._cancellable);
+            return info.get_attribute_uint64('time::modified');
+        } catch (e) {
+            if (isCancelled(e))
+                throw e;
+            return null;
+        }
     }
 
     async _readText(file) {
@@ -222,5 +308,6 @@ export class JumpListSources {
         this._helpers.clear();
         this._lists.clear();
         this._vscode.clear();
+        this._workspaceJson.clear();
     }
 }

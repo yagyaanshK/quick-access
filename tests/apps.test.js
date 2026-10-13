@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
 import {
-    FILES, FOLDERS, VSCODE, commandForFile, newWindowAction, providerFor, vscodeRecents,
-    vscodeWindows,
+    FILES, FOLDERS, VSCODE, commandForFile, newWindowAction, providerFor, vscodeOpenedPaths,
+    vscodeRecents, vscodeWindows, vscodeWorkspaces,
 } from '../src/apps.js';
 
 test('Files lists folders, VS Code its own list, other apps files of their types', () => {
@@ -70,6 +70,49 @@ test('VS Code open windows: the last active first, then the others', () => {
     assert.deepEqual(vscodeWindows('{}'), []);
     assert.deepEqual(vscodeWindows('{"windowsState": {}}'), []);
     assert.deepEqual(vscodeWindows('broken'), []);
+});
+
+test('VS Code open windows of older versions: folderUri, folderPath and configPath', () => {
+    const json = JSON.stringify({
+        windowsState: {
+            lastActiveWindow: {folderPath: '/w/my project'},
+            openedWindows: [{folderUri: 'file:///w/a'}, {workspace: {id: 'x', configPath: '/w/c.code-workspace'}}],
+        },
+    });
+    assert.deepEqual(vscodeWindows(json), ['file:///w/my%20project', 'file:///w/a', 'file:///w/c.code-workspace']);
+});
+
+test('VS Code workspaceStorage: folders and workspaces by last use, newest first', () => {
+    const items = [
+        {json: '{"folder": "file:///w/old"}', time: 100},
+        {json: '{"folder": "file:///w/newest"}', time: 300},
+        {json: '{"workspace": "file:///w/team.code-workspace"}', time: 200},
+        {json: '{"folder": "vscode-remote://ssh-remote%2Bbox/home/u/x"}', time: 400},
+        {json: '{"folder": "file:///w/old"}', time: 50},
+        {json: 'broken', time: 500},
+        {json: '{}', time: 600},
+    ];
+    assert.deepEqual(vscodeWorkspaces(items),
+        ['file:///w/newest', 'file:///w/team.code-workspace', 'file:///w/old']);
+    assert.deepEqual(vscodeWorkspaces([]), []);
+});
+
+test('VS Code before history.recentlyOpenedPathsList: storage.json openedPathsList', () => {
+    const json = JSON.stringify({
+        openedPathsList: {
+            workspaces3: ['file:///w/a', {id: 'x', configURIPath: 'file:///w/b.code-workspace'}, 'vscode-remote://x/y'],
+            workspaces2: ['/w/old path', {id: 'y', configPath: '/w/c.code-workspace'}],
+            workspaces: ['/w/oldest', '/w/a'],
+            files2: ['/w/file.txt'],
+        },
+    });
+    assert.deepEqual(vscodeOpenedPaths(json), [
+        'file:///w/a', 'file:///w/b.code-workspace', 'file:///w/old%20path',
+        'file:///w/c.code-workspace', 'file:///w/oldest',
+    ]);
+    assert.deepEqual(vscodeOpenedPaths('{}'), []);
+    assert.deepEqual(vscodeOpenedPaths('{"openedPathsList": {"workspaces3": 5}}'), []);
+    assert.deepEqual(vscodeOpenedPaths('broken'), []);
 });
 
 test('the new window action is new-window, else new-empty-window', () => {

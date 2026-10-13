@@ -70,6 +70,13 @@ function unique(uris) {
     return [...new Set(uris.filter(isLocal))];
 }
 
+// A file URI for a local path; anything that is already a URI stays as it is.
+function toUri(pathOrUri) {
+    if (typeof pathOrUri !== 'string' || !pathOrUri.startsWith('/'))
+        return pathOrUri;
+    return `file://${pathOrUri.split('/').map(encodeURIComponent).join('/')}`;
+}
+
 // The value of 'history.recentlyOpenedPathsList' in VS Code's state.vscdb:
 // {entries: [{folderUri} | {workspace: {configPath}} | {fileUri}, ...]},
 // newest first. The folders and workspaces; files stay out of a folder list.
@@ -80,6 +87,32 @@ export function vscodeRecents(json) {
     return unique(entries.map(entry => entry?.folderUri ?? entry?.workspace?.configPath));
 }
 
+// The recently opened list as VS Code versions from before
+// 'history.recentlyOpenedPathsList' kept it, in storage.json's
+// 'openedPathsList': 'workspaces3' holds folder URIs and {configURIPath}
+// workspaces; the older 'workspaces2' and 'workspaces' hold paths and
+// {configPath}. Newest first.
+export function vscodeOpenedPaths(json) {
+    const list = parseJson(json)?.openedPathsList;
+    if (!list)
+        return [];
+    const items = ['workspaces3', 'workspaces2', 'workspaces']
+        .flatMap(key => Array.isArray(list[key]) ? list[key] : []);
+    return unique(items.map(item => toUri(typeof item === 'string' ? item : item?.configURIPath ?? item?.configPath)));
+}
+
+// VS Code's workspaceStorage holds a folder for every folder or workspace it
+// has opened, with a workspace.json naming it ({folder} or {workspace}, a
+// .code-workspace file). Current versions keep no other recently opened list,
+// so this is it: [{json: workspace.json text, time: last used}], newest first.
+export function vscodeWorkspaces(items) {
+    const sorted = [...items].sort((a, b) => b.time - a.time);
+    return unique(sorted.map(({json}) => {
+        const workspace = parseJson(json);
+        return workspace?.folder ?? workspace?.workspace;
+    }));
+}
+
 // storage.json's 'windowsState': the folders of the windows open when VS Code
 // last saved it, the last active one first. Covers a recent list that was
 // cleared while windows stayed open.
@@ -88,7 +121,10 @@ export function vscodeWindows(json) {
     if (!state)
         return [];
     const windows = [state.lastActiveWindow, ...Array.isArray(state.openedWindows) ? state.openedWindows : []];
-    return unique(windows.map(w => w?.folder ?? w?.workspaceIdentifier?.configURIPath));
+    // Older versions named the folder by its path ('folderPath') or as
+    // 'folderUri', and a workspace by {configPath}.
+    return unique(windows.map(w => toUri(w?.folder ?? w?.folderUri ?? w?.folderPath ??
+        w?.workspaceIdentifier?.configURIPath ?? w?.workspace?.configPath)));
 }
 
 // The desktop file action that opens a new window, if it has one.

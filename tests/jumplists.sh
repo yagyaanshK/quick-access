@@ -33,7 +33,7 @@ rsync -a --exclude .git --exclude tests --exclude '*.md' --exclude '*.zip' "$SRC
 glib-compile-schemas "$EXT/schemas"
 
 # Folders and files. "projects" twice, to check that clashing names get told apart.
-mkdir -p "$W/projects/006_kagaz" "$W/Shared/ubuntu/projects" "$W/docs" "$W/My Photos" "$W/.hidden" "$W/open" $R/tmpdir
+mkdir -p "$W/projects/006_kagaz" "$W/projects/010_workout" "$W/Shared/ubuntu/projects" "$W/docs" "$W/My Photos" "$W/.hidden" "$W/open" $R/tmpdir
 echo x > "$W/projects/006_kagaz/main.c"; echo x > "$W/docs/notes.txt"; echo x > "$W/docs/tool.py"
 echo x > "$W/My Photos/a.jpg"; echo x > "$W/.hidden/secret.txt"; echo x > $R/tmpdir/scratch.txt
 
@@ -94,7 +94,7 @@ XBEL_SUM=$(md5sum < $XDG_DATA_HOME/recently-used.xbel)
 # VS Code's state database and storage.json, as VS Code writes them.
 G=$XDG_CONFIG_HOME/Code/User/globalStorage; mkdir -p $G
 python3 -I - "$G" "$W" <<'PY'
-import json, pathlib, sqlite3, sys
+import json, os, pathlib, sqlite3, sys
 G, W = sys.argv[1], pathlib.Path(sys.argv[2])
 db = sqlite3.connect(f'{G}/state.vscdb')
 db.execute('CREATE TABLE ItemTable (key TEXT UNIQUE ON CONFLICT REPLACE, value BLOB)')
@@ -108,6 +108,23 @@ db.execute('INSERT INTO ItemTable VALUES (?, ?)', ('history.recentlyOpenedPathsL
 db.commit()
 state = {'lastActiveWindow': {'folder': (W / 'open').as_uri()}, 'openedWindows': [{'folder': (W / 'projects').as_uri()}]}
 pathlib.Path(G, 'storage.json').write_text(json.dumps({'windowsState': state}))
+
+# workspaceStorage: one folder per workspace VS Code has opened, its last use
+# being the time of the state.vscdb inside. Current versions keep no other list.
+(W / 'team.code-workspace').write_text('{"folders": []}')
+for n, (workspace, ago) in enumerate([({'folder': (W / 'projects/010_workout').as_uri()}, 10),
+                                      ({'folder': (W / 'projects/006_kagaz').as_uri()}, 20),
+                                      ({'workspace': (W / 'team.code-workspace').as_uri()}, 30),
+                                      ({'folder': 'vscode-remote://ssh-remote%2Bbox/home/u/remote'}, 5),
+                                      ({'folder': (W / 'deleted').as_uri()}, 1),
+                                      (None, 0)]):
+    d = pathlib.Path(G).parent / 'workspaceStorage' / f'ws{n}'
+    d.mkdir(parents=True)
+    if workspace:
+        (d / 'workspace.json').write_text(json.dumps(workspace))
+    (d / 'state.vscdb').write_bytes(b'')
+    t = 2_000_000_000 - ago * 60
+    os.utime(d / 'state.vscdb', (t, t))
 PY
 
 dbus-run-session -- bash -c "echo \$DBUS_SESSION_BUS_ADDRESS > $R/bus
@@ -275,8 +292,8 @@ check "Files: recent folders, newest first; hidden, /tmp and missing ones skippe
 shot jumplist-files.png
 val "__qa.close('$FILES')" >/dev/null
 
-check "VS Code: its recent folders, then its open windows; files, remote and deleted folders skipped" \
-    "# Visual Studio Code|# Recent Folders|006_kagaz|$PROJECTS|open|---" "$(menu $CODE)"
+check "VS Code: its recent list, then its workspaces by last use, then its open windows; files, remote and deleted folders skipped" \
+    "# Visual Studio Code|# Recent Folders|006_kagaz|$PROJECTS|010_workout|team|open|---" "$(menu $CODE)"
 shot jumplist-vscode.png
 val "__qa.close('$CODE')" >/dev/null
 
@@ -290,7 +307,17 @@ db.execute('INSERT INTO ItemTable VALUES (?, ?)', (key, json.dumps(value)))
 db.commit()
 PY
 check "a change to VS Code's history shows the next time its menu opens" \
-    "# Visual Studio Code|# Recent Folders|docs|006_kagaz|$PROJECTS|open|---" "$(menu $CODE)"
+    "# Visual Studio Code|# Recent Folders|docs|006_kagaz|$PROJECTS|010_workout|team|open|---" "$(menu $CODE)"
+val "__qa.close('$CODE')" >/dev/null
+
+python3 -I - "$G/state.vscdb" <<'PY'
+import sqlite3, sys
+db = sqlite3.connect(sys.argv[1])
+db.execute("DELETE FROM ItemTable WHERE key = 'history.recentlyOpenedPathsList'")
+db.commit()
+PY
+check "current VS Code without a recent list: its workspaces by last use, then its open windows" \
+    "# Visual Studio Code|# Recent Folders|010_workout|006_kagaz|team|open|projects|---" "$(menu $CODE)"
 val "__qa.close('$CODE')" >/dev/null
 
 check "Text Editor: recent text files of any text type, hidden ones too; no images, /tmp or missing files" \
