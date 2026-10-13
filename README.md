@@ -5,6 +5,10 @@ sidebar of every Open and Save dialog, and of Files, like Quick Access on
 Windows. Save a photo into a folder once and that folder is one click away the
 next time any app asks where to save.
 
+It also gives the apps in your dock a jump list, as on Windows 11: right-click
+Files, VS Code or any other app and its pinned and recent folders or files are
+right there.
+
 ```
 Documents
 Downloads
@@ -35,9 +39,56 @@ never reordered, renamed or removed.
 Preferences: the number of folders (1–10), whether to skip folders already in the
 sidebar, and a button to show hidden folders again.
 
+## Dock jump lists
+
+Right-click an app in Ubuntu Dock or Dash to Dock (or in GNOME's own dash and
+app grid) and its menu starts with a jump list:
+
+```
+Files ──────────────
+Pinned ─────────────
+  006_kagaz
+Recent Folders ─────
+  Downloads
+  projects — ubuntu
+  projects — ~
+──────────────────────
+New Window
+```
+
+- **Files** lists recent folders: folders you opened and the folders of files
+  you opened or saved, as in the sidebar.
+- **VS Code** (also Code - OSS, VSCodium and Insiders) lists its own recently
+  opened folders and workspaces, read from its `state.vscdb`. GNOME Shell cannot
+  read SQLite, so a short Python script (`src/vscdb.py`) reads it, read-only, in
+  the background; it only runs again after VS Code changed the file.
+- **Any other app** lists recent files of the types it opens (the `MimeType` of
+  its desktop file, including subtypes, so Text Editor shows every kind of text
+  file). Apps that open no files get no list.
+
+Entries show the folder or file name; when two have the same name, the end of
+their parent path is added in grey. Hover an entry to see its full path and two
+buttons at its end:
+
+- **Pin** moves it to the Pinned section at the top, which keeps the order you
+  pinned in. On a pinned entry the button unpins it.
+- **Remove** (×) takes it off that app's list. It deletes nothing, and
+  `recently-used.xbel` and VS Code's history are left as they are. Removing a
+  pinned entry just unpins it.
+
+Click an entry to open it with the app; middle-click to open it in a new window
+(through the app's "New Window" action). Pins and removed entries are kept per
+app. Files that no longer exist, files outside your computer and system places
+such as `/tmp` are skipped. With **File History** off, only pins are shown.
+
+Preferences: jump lists on or off, the number of recent entries (1–20, 10 by
+default, pins come on top), and buttons to unpin everything or show removed
+entries again.
+
 ## Install
 
-GNOME Shell 50.
+GNOME Shell 50. VS Code jump lists also need `python3` (part of every Ubuntu
+install).
 
 ```sh
 git clone https://github.com/yagyaanshK/quick-access.git

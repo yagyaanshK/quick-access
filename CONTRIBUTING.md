@@ -17,7 +17,9 @@ the Extensions app or `gnome-extensions enable quick-access@yagyaanshK.github.co
 ## Tests
 
 `src/recents.js` (which folders count, their labels, how they merge into the
-bookmarks file) has no GNOME dependency and is tested with node:
+bookmarks file), `src/jumpList.js` (what a dock jump list shows, its labels,
+pins and removals) and `src/apps.js` (which app gets which list, VS Code's
+data, new window commands) have no GNOME dependency and are tested with node:
 
 ```sh
 node --test
@@ -34,13 +36,27 @@ disable.
 tests/headless.sh
 ```
 
+`tests/jumplists.sh` does the same for the dock jump lists, with Ubuntu Dock
+enabled: it fills a fake recent files list and VS Code history, opens dock and
+app grid menus, and checks their entries, the hover tooltip, the pin and remove
+buttons, opening entries (through a stand-in app), the settings and clean-up on
+disable. `SHOTS=<folder>` also saves screenshots of the open menus.
+
+```sh
+tests/jumplists.sh
+```
+
 Run both before opening a pull request and say so in it.
 
 ## Rules
 
 - The user's own bookmarks are never reordered, renamed or removed. Quick Access
   only touches lines whose label starts with its clock mark.
-- Respect GNOME's privacy setting: with "remember recent files" off, show nothing.
+- Respect GNOME's privacy setting: with "remember recent files" off, show nothing
+  (dock jump lists keep showing what the user pinned).
+- Never block the shell: files are read asynchronously, VS Code's database in a
+  separate process.
+- Jump lists never change files, `recently-used.xbel` or VS Code's history.
 - Plain descriptive commit messages. No "Co-Authored-By" trailers, no "generated
   with" lines, no tool attribution of any kind in commits, pull requests or code.
 - Contributions need the [CLA](CLA.md); see the licensing note in the README.

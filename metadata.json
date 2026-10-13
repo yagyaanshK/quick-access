@@ -1,9 +1,9 @@
 {
   "uuid": "quick-access@yagyaanshK.github.com",
   "name": "Quick Access",
-  "description": "Shows your most recently used folders in the sidebar of every Open and Save dialog and of Files, like Quick Access on Windows. Saving or opening a file moves its folder to the top. Remove an entry to hide that folder, or rename it to pin it as a normal bookmark.",
+  "description": "Shows your most recently used folders in the sidebar of every Open and Save dialog and of Files, like Quick Access on Windows. Saving or opening a file moves its folder to the top. Remove an entry to hide that folder, or rename it to pin it as a normal bookmark.\n\nRight-clicking an app in the dock shows a jump list, as on Windows 11: the files or folders you pinned for that app, then its recent ones (Files: recent folders, VS Code: recent projects, other apps: recent files they open).",
   "shell-version": ["50"],
   "url": "https://github.com/yagyaanshK/quick-access",
   "settings-schema": "org.gnome.shell.extensions.quick-access",
-  "version-name": "0.1.0"
+  "version-name": "0.2.0"
 }
