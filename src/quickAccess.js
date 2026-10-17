@@ -39,22 +39,21 @@ async function readTextAsync(file, cancellable) {
     }
 }
 
-// The synchronous pair is only used when the extension starts and stops.
-function readText(file) {
-    try {
-        const [, bytes] = file.load_contents(null);
-        return new TextDecoder().decode(bytes);
-    } catch (e) {
-        if (!isError(e, Gio.IOErrorEnum.NOT_FOUND))
-            logError(e, 'Quick Access: cannot read bookmarks');
-        return '';
-    }
+async function writeTextAsync(file, text, cancellable) {
+    ensureParent(file);
+    await file.replace_contents_bytes_async(new GLib.Bytes(new TextEncoder().encode(text)),
+        null, false, Gio.FileCreateFlags.NONE, cancellable);
 }
 
-function writeText(file, text) {
-    ensureParent(file);
-    file.replace_contents(new TextEncoder().encode(text), null, false,
-        Gio.FileCreateFlags.NONE, null);
+// Bookmark updates run one at a time, also across a disable and the next enable
+// (the shell does both around the lock screen): the clean-up after disable must
+// finish before the next session's first sync reads the file.
+let bookmarksQueue = Promise.resolve();
+
+function serialized(task) {
+    const run = bookmarksQueue.then(task);
+    bookmarksQueue = run.catch(() => {});
+    return run;
 }
 
 function isFolder(uri) {
@@ -79,10 +78,8 @@ export class QuickAccess {
         this._syncing = false;
         this._syncAgain = false;
 
-        // Entries left behind by a previous session count as written by us,
-        // so they are not mistaken for ones the user removed.
-        this._lastWritten = parseBookmarks(readText(this._bookmarksFile))
-            .filter(isManaged).map(b => b.uri);
+        // Set from the file by the first sync.
+        this._lastWritten = null;
 
         this._monitors = [this._recentFile, this._bookmarksFile].map(file => {
             const monitor = file.monitor_file(Gio.FileMonitorFlags.NONE, null);
@@ -118,7 +115,7 @@ export class QuickAccess {
         }
         this._syncing = true;
         try {
-            await this._syncOnce();
+            await serialized(() => this._syncOnce());
         } catch (e) {
             if (!isError(e, Gio.IOErrorEnum.CANCELLED))
                 logError(e, 'Quick Access');
@@ -133,6 +130,9 @@ export class QuickAccess {
 
     async _syncOnce() {
         const text = await readTextAsync(this._bookmarksFile, this._cancellable);
+        // Entries left behind by a previous session count as written by us,
+        // so they are not mistaken for ones the user removed.
+        this._lastWritten ??= parseBookmarks(text).filter(isManaged).map(b => b.uri);
         this._rememberRemoved(text);
 
         let folders = [];
@@ -151,12 +151,8 @@ export class QuickAccess {
         }
 
         const merged = merge(text, folders);
-        if (merged !== text) {
-            ensureParent(this._bookmarksFile);
-            await this._bookmarksFile.replace_contents_bytes_async(
-                new GLib.Bytes(new TextEncoder().encode(merged)), null, false,
-                Gio.FileCreateFlags.NONE, this._cancellable);
-        }
+        if (merged !== text)
+            await writeTextAsync(this._bookmarksFile, merged, this._cancellable);
         this._lastWritten = folders;
     }
 
@@ -182,14 +178,14 @@ export class QuickAccess {
         this._settings.disconnectObject(this);
         this._privacy.disconnectObject(this);
 
-        // Leave only the user's own bookmarks behind.
-        try {
-            const text = readText(this._bookmarksFile);
+        // Leave only the user's own bookmarks behind. Not cancellable: it has to
+        // finish even though this instance is gone.
+        const file = this._bookmarksFile;
+        serialized(async () => {
+            const text = await readTextAsync(file, null);
             const merged = merge(text, []);
             if (merged !== text)
-                writeText(this._bookmarksFile, merged);
-        } catch (e) {
-            logError(e, 'Quick Access');
-        }
+                await writeTextAsync(file, merged, null);
+        }).catch(e => logError(e, 'Quick Access'));
     }
 }

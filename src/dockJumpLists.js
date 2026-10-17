@@ -125,7 +125,7 @@ class PathTooltip {
     }
 
     get text() {
-        return this._label.visible ? this._label.text : null;
+        return this._label?.visible ? this._label.text : null;
     }
 
     showFor(item) {
@@ -149,8 +149,9 @@ class PathTooltip {
             this._timeoutId = 0;
         }
         this._item = null;
-        this._label.remove_all_transitions();
-        this._label.hide();
+        // A row can still report the pointer leaving after destroy().
+        this._label?.remove_all_transitions();
+        this._label?.hide();
     }
 
     // Below the row, lined up with its name; above it near the screen edge.
@@ -186,6 +187,7 @@ class PathTooltip {
     destroy() {
         this.hide();
         this._label.destroy();
+        this._label = null;
     }
 }
 

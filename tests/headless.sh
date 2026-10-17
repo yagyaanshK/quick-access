@@ -114,6 +114,14 @@ ev "Main.extensionManager.disableExtension('$UUID')" >/dev/null; settle 2
 check "disabling leaves only the user's bookmarks" ""
 [ "$(grep -c . $XDG_CONFIG_HOME/gtk-3.0/bookmarks)" = 2 ] && echo "PASS  Documents and the pinned folder remain" || { echo "FAIL  bookmarks after disable:"; cat $XDG_CONFIG_HOME/gtk-3.0/bookmarks; fails=$((fails+1)); }
 
+ev "Main.extensionManager.enableExtension('$UUID')" >/dev/null; settle 2
+check "enabling again brings the recent folders back" "y/shots ${M}shots (y)|x/shots ${M}shots (x)|"
+# The shell disables and enables extensions around the lock screen: the clean-up
+# must not overwrite the next session's entries, which would then look removed.
+ev "Main.extensionManager.disableExtension('$UUID'); Main.extensionManager.enableExtension('$UUID')" >/dev/null; settle 2
+check "disabling and enabling at once keeps the recent folders" "y/shots ${M}shots (y)|x/shots ${M}shots (x)|"
+setting "get_strv('hidden-folders').length" | grep -q "'1'" && echo "PASS  and hides nothing new" || { echo "FAIL  folders were hidden by the restart"; fails=$((fails+1)); }
+
 if grep -E "JS ERROR|JS WARNING|Quick Access|$UUID" $R/shell.log; then echo "FAIL  errors in the shell log"; fails=$((fails+1)); fi
 echo; [ $fails = 0 ] && echo "All checks passed" || echo "$fails check(s) failed"
 exit $fails

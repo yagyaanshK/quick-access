@@ -5,5 +5,5 @@
   "shell-version": ["50"],
   "url": "https://github.com/yagyaanshK/quick-access",
   "settings-schema": "org.gnome.shell.extensions.quick-access",
-  "version-name": "0.2.0"
+  "version-name": "0.2.1"
 }
